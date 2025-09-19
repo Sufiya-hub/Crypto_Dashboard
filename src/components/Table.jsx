@@ -1,7 +1,8 @@
 'use client';
 import React, { useEffect, useState, useCallback } from 'react';
 import { FaRegStar } from 'react-icons/fa';
-// import Shadcn UI table components
+
+// Shadcn UI table components
 import {
   Table as ShadcnTable,
   TableBody,
@@ -20,7 +21,7 @@ const CoinsTable = () => {
   const [total, setTotal] = useState(0);
   const perPage = 10;
 
-  // ✅ fetchCoins with pagination
+  // ✅ fetch coins with pagination
   const fetchCoins = useCallback(async (pageNum) => {
     setLoading(true);
     setError('');
@@ -37,8 +38,14 @@ const CoinsTable = () => {
       }
 
       const data = await res.json();
-      setCoins(Array.isArray(data) ? data : []);
-      setTotal(2500); // CoinGecko limit assumption
+      if (!Array.isArray(data) || data.length === 0) {
+        setError('No more coins available');
+        setCoins([]);
+        setLoading(false);
+        return;
+      }
+
+      setCoins(data);
     } catch (err) {
       setError('Error fetching coins: ' + err.message);
       setCoins([]);
@@ -46,13 +53,32 @@ const CoinsTable = () => {
     setLoading(false);
   }, []);
 
-  // ✅ Fetch when page changes
+  // ✅ Fetch coins when page changes
   useEffect(() => {
     fetchCoins(page);
   }, [page, fetchCoins]);
 
+  // ✅ Fetch total number of coins (dynamic count)
+  useEffect(() => {
+    async function fetchTotalCoins() {
+      try {
+        const res = await fetch('https://api.coingecko.com/api/v3/coins/list');
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setTotal(data.length);
+        } else {
+          setTotal(2500); // fallback
+        }
+      } catch (err) {
+        console.error('Failed to fetch total coins:', err);
+        setTotal(2500); // safe fallback
+      }
+    }
+    fetchTotalCoins();
+  }, []);
+
   return (
-    <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-4 mt-10 max-w-full overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-2 sm:p-4 mt-6 max-w-full overflow-x-auto">
       {error && (
         <div className="mb-4 p-2 bg-red-100 text-red-700 rounded text-sm">
           {error}
@@ -62,7 +88,7 @@ const CoinsTable = () => {
       {/* Pagination Header */}
       <div className="flex justify-between items-center mb-4">
         <span className="text-sm text-gray-500">
-          Page {page} of {Math.ceil(total / perPage)}
+          Page {page} of {total > 0 ? Math.ceil(total / perPage) : '...'}
         </span>
         <div className="flex gap-2">
           <button
@@ -82,22 +108,30 @@ const CoinsTable = () => {
         </div>
       </div>
 
-      <div className="overflow-x-hidden">
-        <ShadcnTable className="w-full table-fixed text-base">
+      <div className="overflow-x-auto">
+        <ShadcnTable className="min-w-[700px] md:min-w-[1100px] w-full table-fixed text-sm md:text-base">
           <TableCaption className="text-sm text-gray-400 pb-2">
             Live market data powered by CoinGecko
           </TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[3%] text-center"></TableHead>
-              <TableHead className="w-[3%] text-center">#</TableHead>
-              <TableHead className="w-[25%]">Coin</TableHead>
-              <TableHead className="text-right w-[10%]">Price</TableHead>
-              <TableHead className="text-right w-[7%]">24h</TableHead>
-              <TableHead className="text-right w-[7%]">7d</TableHead>
-              <TableHead className="text-right w-[12%]">24h Vol</TableHead>
-              <TableHead className="text-right w-[15%]">Market Cap</TableHead>
-              <TableHead className="text-center w-[20%]">Last 7 Days</TableHead>
+              <TableHead className="w-8 text-center"></TableHead>
+              <TableHead className="w-8 text-center">#</TableHead>
+              <TableHead className="w-32 md:w-[25%]">Coin</TableHead>
+              <TableHead className="text-right w-20 md:w-[10%]">
+                Price
+              </TableHead>
+              <TableHead className="text-right w-14 md:w-[7%]">24h</TableHead>
+              <TableHead className="text-right w-14 md:w-[7%]">7d</TableHead>
+              <TableHead className="text-right w-24 md:w-[12%]">
+                24h Vol
+              </TableHead>
+              <TableHead className="text-right w-32 md:w-[15%]">
+                Market Cap
+              </TableHead>
+              <TableHead className="text-center w-32 md:w-[20%]">
+                Last 7 Days
+              </TableHead>
             </TableRow>
           </TableHeader>
 
@@ -133,14 +167,14 @@ const CoinsTable = () => {
                     {(page - 1) * perPage + idx + 1}
                   </TableCell>
                   <TableCell className="align-middle">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 md:gap-3">
                       <img
                         src={coin.image}
                         alt={coin.name}
                         className="w-6 h-6 rounded-full border"
                       />
-                      <div className="flex gap-2 items-center">
-                        <span className="font-semibold text-gray-900 leading-tight text-sm">
+                      <div className="flex gap-1 md:gap-2 items-center">
+                        <span className="font-semibold text-gray-900 leading-tight text-xs md:text-sm">
                           {coin.name}
                         </span>
                         <span className="text-[10px] text-gray-500 uppercase tracking-wide">
@@ -148,7 +182,7 @@ const CoinsTable = () => {
                         </span>
                       </div>
                       <div className="ml-auto">
-                        <button className="px-3 py-1 bg-green-50 text-green-700 rounded font-medium text-xs border border-green-100 hover:bg-green-100 transition">
+                        <button className="px-2 md:px-3 py-1 bg-green-50 text-green-700 rounded font-medium text-xs border border-green-100 hover:bg-green-100 transition">
                           Buy
                         </button>
                       </div>
