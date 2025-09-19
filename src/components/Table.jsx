@@ -1,6 +1,7 @@
 'use client';
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { FaRegStar } from 'react-icons/fa';
+// import Shadcn UI table components
 import {
   Table as ShadcnTable,
   TableBody,
@@ -16,77 +17,38 @@ const CoinsTable = () => {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [hasMore, setHasMore] = useState(true);
-  const loader = useRef(null);
+  const [total, setTotal] = useState(0);
+  const perPage = 10;
 
-  const perPage = 40;
+  // ✅ fetchCoins with pagination
+  const fetchCoins = useCallback(async (pageNum) => {
+    setLoading(true);
+    setError('');
+    try {
+      const baseUrl = 'https://api.coingecko.com/api/v3';
+      const url = `${baseUrl}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${pageNum}&sparkline=true&price_change_percentage=24h,7d`;
 
-  const fetchCoins = useCallback(
-    async (pageNum) => {
-      if (loading) return; // prevent duplicate calls
-      setLoading(true);
-      setError('');
-
-      try {
-        const baseUrl = 'https://api.coingecko.com/api/v3';
-        const url = `${baseUrl}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${pageNum}&sparkline=true&price_change_percentage=24h,7d`;
-
-        const res = await fetch(url);
-        if (!res.ok) {
-          setError(`API error ${res.status}: ${res.statusText}`);
-          setLoading(false);
-          return;
-        }
-
-        const data = await res.json();
-
-        if (data.length === 0) {
-          setHasMore(false);
-        } else {
-          setCoins((prev) => [...prev, ...data]);
-        }
-      } catch (err) {
-        setError('Error fetching coins: ' + err.message);
+      const res = await fetch(url);
+      if (!res.ok) {
+        setError(`API error ${res.status}: ${res.statusText}`);
+        setCoins([]);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
-    },
-    [loading]
-  );
 
-  // ✅ First load = only 40 coins
-  useEffect(() => {
-    fetchCoins(1);
-  }, [fetchCoins]);
-
-  useEffect(() => {
-    if (!loader.current) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const first = entries[0];
-        if (first.isIntersecting) {
-          // check states inside, not in deps
-          if (!loading && hasMore) {
-            setPage((prev) => prev + 1);
-          }
-        }
-      },
-      { root: null, rootMargin: '200px', threshold: 0 }
-    );
-
-    const currentLoader = loader.current;
-    observer.observe(currentLoader);
-
-    return () => {
-      if (currentLoader) observer.unobserve(currentLoader);
-    };
-  }, []); // 👈 empty array → effect runs once
-
-  // ✅ Fetch only when page changes (after scroll)
-  useEffect(() => {
-    if (page > 1) {
-      fetchCoins(page);
+      const data = await res.json();
+      setCoins(Array.isArray(data) ? data : []);
+      setTotal(2500); // CoinGecko limit assumption
+    } catch (err) {
+      setError('Error fetching coins: ' + err.message);
+      setCoins([]);
     }
+    setLoading(false);
+  }, []);
+
+  // ✅ Fetch when page changes
+  useEffect(() => {
+    fetchCoins(page);
   }, [page, fetchCoins]);
 
   return (
@@ -97,10 +59,27 @@ const CoinsTable = () => {
         </div>
       )}
 
+      {/* Pagination Header */}
       <div className="flex justify-between items-center mb-4">
         <span className="text-sm text-gray-500">
-          Showing {coins.length} coins
+          Page {page} of {Math.ceil(total / perPage)}
         </span>
+        <div className="flex gap-2">
+          <button
+            className="px-3 py-1 rounded border text-xs disabled:opacity-50"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1 || loading}
+          >
+            Prev
+          </button>
+          <button
+            className="px-3 py-1 rounded border text-xs disabled:opacity-50"
+            onClick={() => setPage((p) => p + 1)}
+            disabled={coins.length < perPage || loading}
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-hidden">
@@ -137,7 +116,6 @@ const CoinsTable = () => {
                   })
                   .join(' ');
               }
-
               const chartColor =
                 coin.price_change_percentage_7d_in_currency > 0
                   ? '#22c55e'
@@ -152,7 +130,7 @@ const CoinsTable = () => {
                     <FaRegStar className="mx-auto text-gray-400 hover:text-yellow-400 cursor-pointer" />
                   </TableCell>
                   <TableCell className="text-center align-middle font-medium text-gray-700">
-                    {idx + 1}
+                    {(page - 1) * perPage + idx + 1}
                   </TableCell>
                   <TableCell className="align-middle">
                     <div className="flex items-center gap-2">
@@ -227,15 +205,12 @@ const CoinsTable = () => {
             {loading && (
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-4 text-sm">
-                  Loading more coins...
+                  Loading coins...
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </ShadcnTable>
-
-        {/* 👇 loader trigger for infinite scroll */}
-        {hasMore && <div ref={loader} className="h-10"></div>}
       </div>
     </div>
   );
